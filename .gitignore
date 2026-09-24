@@ -1,0 +1,7 @@
+build/
+tests/unity/
+*.o
+*.elf
+*.bin
+*.hex
+*.map
