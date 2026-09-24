@@ -10,6 +10,10 @@
 TARGET  := firmware
 BUILD   := build
 
+# --- size budget (bytes): the build fails if the image outgrows these ---
+FLASH_MAX ?= 65536
+RAM_MAX   ?= 20480
+
 # --- version information compiled into the binary (configuration mgmt) ---
 FW_VERSION ?= 0.1.0
 GIT_HASH   := $(shell git rev-parse --short HEAD 2>/dev/null || echo nogit)
@@ -21,7 +25,7 @@ OBJCOPY := $(PREFIX)objcopy
 SIZE    := $(PREFIX)size
 
 # --- sources ---
-SRCS    := src/startup.c src/main.c src/belt.c
+SRCS    := src/startup.c src/main.c src/belt.c src/cems.c src/platform_stm32.c
 OBJS    := $(SRCS:%.c=$(BUILD)/%.o)
 LDSCRIPT:= linker/STM32F446RE.ld
 
@@ -61,8 +65,31 @@ test: $(UNITY_DIR)/src/unity.c
 	    tests/test_belt.c src/belt.c $(UNITY_DIR)/src/unity.c -o $(BUILD)/test_belt
 	./$(BUILD)/test_belt
 
+# --- simulated hardware scenario tests (host build, fake platform) ---
+sim: $(UNITY_DIR)/src/unity.c
+	@mkdir -p $(BUILD)
+	gcc -Iinc -Itests -I$(UNITY_DIR)/src -Wall -Wextra \
+	    tests/test_cems.c tests/platform_sim.c src/cems.c src/belt.c \
+	    $(UNITY_DIR)/src/unity.c -o $(BUILD)/test_cems
+	./$(BUILD)/test_cems
+
 $(UNITY_DIR)/src/unity.c:
 	git clone --depth 1 https://github.com/ThrowTheSwitch/Unity.git $(UNITY_DIR)
+
+# --- simulated device + Python hardware-in-the-loop runner ---
+$(BUILD)/sim_device: tests/sim_device.c tests/platform_sim.c src/cems.c src/belt.c
+	@mkdir -p $(BUILD)
+	gcc -Iinc -Itests -Wall -Wextra \
+	    tests/sim_device.c tests/platform_sim.c src/cems.c src/belt.c \
+	    -o $(BUILD)/sim_device
+
+hil: $(BUILD)/sim_device
+	python tools/hil_runner.py --scenarios tests/scenarios.json \
+	    --device $(BUILD)/sim_device --report $(BUILD)/hil-report.xml
+
+size-check: $(BUILD)/$(TARGET).elf
+	python tools/size_budget.py $(BUILD)/$(TARGET).elf \
+	    --flash-max $(FLASH_MAX) --ram-max $(RAM_MAX)
 
 cppcheck:
 	cppcheck --enable=warning,style,performance --error-exitcode=1 \
@@ -71,4 +98,4 @@ cppcheck:
 clean:
 	rm -rf $(BUILD) $(UNITY_DIR)
 
-.PHONY: all size test cppcheck clean
+.PHONY: all size test sim hil size-check cppcheck clean

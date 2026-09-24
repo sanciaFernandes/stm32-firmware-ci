@@ -1,19 +1,21 @@
-/* Bare-metal STM32F446RE application: blinks the Nucleo user LED (PA5)
- * and exercises the belt tensioning logic. */
+/* Bare-metal STM32F446RE application.
+ *
+ * Runs the belt tensioning state machine from a simple 10 ms super loop and
+ * blinks the Nucleo user LED (PA5) as a heartbeat. */
 
 #include <stdint.h>
-#include "belt.h"
+#include "cems.h"
+#include "platform.h"
 
 /* --- Minimal register definitions (no HAL, no CMSIS) --- */
-#define RCC_BASE        0x40023800UL
-#define RCC_AHB1ENR     (*(volatile uint32_t *)(RCC_BASE + 0x30UL))
+#define RCC_AHB1ENR     (*(volatile uint32_t *)0x40023830UL)
+#define GPIOA_MODER     (*(volatile uint32_t *)0x40020000UL)
+#define GPIOA_ODR       (*(volatile uint32_t *)0x40020014UL)
 
-#define GPIOA_BASE      0x40020000UL
-#define GPIOA_MODER     (*(volatile uint32_t *)(GPIOA_BASE + 0x00UL))
-#define GPIOA_ODR       (*(volatile uint32_t *)(GPIOA_BASE + 0x14UL))
-
-#define GPIOAEN         (1UL << 0)      /* RCC_AHB1ENR bit 0 */
+#define GPIOAEN         (1UL << 0)
 #define LED_PIN         5U              /* PA5 = user LED LD2 */
+#define STEP_MS         10U             /* state machine period */
+#define HEARTBEAT_MS    500U
 
 /* Firmware identity, injected by the Makefile at compile time */
 #ifndef FW_VERSION
@@ -26,25 +28,36 @@
 const char fw_version[] = FW_VERSION;
 const char git_hash[]   = GIT_HASH;
 
-static void delay(volatile uint32_t count)
-{
-    while (count-- > 0U)
-    {
-    }
-}
-
 int main(void)
 {
-    /* Enable the GPIOA clock — without this, writes to GPIOA do nothing */
-    RCC_AHB1ENR |= GPIOAEN;
+    uint32_t last_step = 0U;
+    uint32_t last_blink = 0U;
 
-    /* PA5 as output: MODER bits [11:10] = 01 */
+    platform_init();
+
+    /* Heartbeat LED on PA5 */
+    RCC_AHB1ENR |= GPIOAEN;
     GPIOA_MODER &= ~(3UL << (LED_PIN * 2U));
     GPIOA_MODER |=  (1UL << (LED_PIN * 2U));
 
+    cems_init();
+
     for (;;)
     {
-        GPIOA_ODR ^= (1UL << LED_PIN);     /* toggle the LED */
-        delay(1000000U);
+        const uint32_t now = platform_now_ms();
+
+        /* Run the belt logic every 10 ms — never blocking */
+        if ((now - last_step) >= STEP_MS)
+        {
+            last_step = now;
+            cems_step();
+        }
+
+        /* Heartbeat: if this stops blinking, the loop is stuck */
+        if ((now - last_blink) >= HEARTBEAT_MS)
+        {
+            last_blink = now;
+            GPIOA_ODR ^= (1UL << LED_PIN);
+        }
     }
 }

@@ -1,0 +1,97 @@
+{
+  "description": "CEMS hardware-in-the-loop scenarios. Backend-agnostic: the same steps run against the simulated device in CI or against a real board over SWD/JTAG.",
+  "scenarios": [
+    {
+      "name": "BLA assists extraction while the occupant pulls",
+      "steps": [
+        { "set": { "latch": 0, "pull": 20 } },
+        { "step_ms": 100 },
+        { "expect": { "state": "BLA", "duty_above": 0.0 } }
+      ]
+    },
+    {
+      "name": "BLA stops when the occupant lets go",
+      "steps": [
+        { "set": { "latch": 0, "pull": 20 } },
+        { "step_ms": 100 },
+        { "expect": { "state": "BLA" } },
+        { "set": { "pull": 0 } },
+        { "step_ms": 50 },
+        { "expect": { "state": "UNLATCHED", "duty": 0.0 } }
+      ]
+    },
+    {
+      "name": "BSR runs for 3 s after latching, then comfort takes over",
+      "steps": [
+        { "set": { "latch": 1 } },
+        { "step_ms": 100 },
+        { "expect": { "state": "BSR" } },
+        { "step_ms": 1000 },
+        { "expect": { "state": "BSR", "duty_below": -0.9 } },
+        { "step_ms": 2300 },
+        { "expect": { "state": "COMFORT" } }
+      ]
+    },
+    {
+      "name": "Haptic request during BSR is ignored, then serviced",
+      "steps": [
+        { "set": { "latch": 1 } },
+        { "step_ms": 100 },
+        { "set": { "haptic": 1 } },
+        { "step_ms": 500 },
+        { "expect": { "state": "BSR" } },
+        { "step_ms": 3000 },
+        { "expect": { "state": "HAPTIC" } }
+      ]
+    },
+    {
+      "name": "Hard mode resists extraction, soft mode assists it",
+      "steps": [
+        { "set": { "latch": 1 } },
+        { "step_ms": 3300 },
+        { "expect": { "state": "COMFORT" } },
+        { "set": { "mode": "SOFT", "pull": 20 } },
+        { "step_ms": 100 },
+        { "expect": { "duty_above": 0.0 } },
+        { "set": { "mode": "HARD" } },
+        { "step_ms": 100 },
+        { "expect": { "duty_below": 0.0 } }
+      ]
+    },
+    {
+      "name": "Motor is off when the occupant is still",
+      "steps": [
+        { "set": { "latch": 1 } },
+        { "step_ms": 3300 },
+        { "set": { "pull": 0 } },
+        { "step_ms": 500 },
+        { "expect": { "state": "COMFORT", "duty": 0.0 } }
+      ]
+    },
+    {
+      "name": "Overcurrent latches a fault that recovery does not clear",
+      "steps": [
+        { "set": { "latch": 1 } },
+        { "step_ms": 1000 },
+        { "set": { "current": 13.5 } },
+        { "step_ms": 20 },
+        { "expect": { "state": "FAULT", "duty": 0.0 } },
+        { "set": { "current": 0.0 } },
+        { "step_ms": 1000 },
+        { "expect": { "state": "FAULT", "duty": 0.0 } }
+      ]
+    },
+    {
+      "name": "Releasing the buckle parks the belt, then returns to idle",
+      "steps": [
+        { "set": { "latch": 1 } },
+        { "step_ms": 3300 },
+        { "set": { "latch": 0 } },
+        { "step_ms": 20 },
+        { "expect": { "state": "PARKING", "duty_below": 0.0 } },
+        { "step_ms": 1400 },
+        { "expect": { "state": "UNLATCHED", "duty": 0.0 } }
+      ]
+    }
+  ]
+}
