@@ -57,18 +57,28 @@ void Reset_Handler(void)
     uint32_t *src;
     uint32_t *dst;
 
+    /* The linker guarantees these symbols bound the same region, but the C
+     * language treats them as separate objects, so the loop bounds are
+     * compared as integer addresses (uintptr_t) rather than as pointers.
+     * Comparing pointers into different objects is undefined behaviour and
+     * is reported by static analysis. */
+
     /* 1. Copy initialised globals (.data) from flash into RAM */
     src = &_sidata;
-    for (dst = &_sdata; dst < &_edata; dst++)
+    dst = &_sdata;
+    while ((uintptr_t)dst < (uintptr_t)&_edata)
     {
         *dst = *src;
+        dst++;
         src++;
     }
 
     /* 2. Zero the uninitialised globals (.bss) */
-    for (dst = &_sbss; dst < &_ebss; dst++)
+    dst = &_sbss;
+    while ((uintptr_t)dst < (uintptr_t)&_ebss)
     {
         *dst = 0U;
+        dst++;
     }
 
     /* 3. Hand over to the application */
