@@ -52,6 +52,10 @@ jobs:
     needs: [build, test, static-analysis]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    # The default GITHUB_TOKEN is read-only; creating a release needs write
+    # access to repository contents. Granted here only, not repo-wide.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Install ARM toolchain
