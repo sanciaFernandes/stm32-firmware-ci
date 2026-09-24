@@ -56,6 +56,7 @@ size: $(BUILD)/$(TARGET).elf
 # --- host unit tests (compiled with the NATIVE gcc, not the ARM one) ---
 UNITY_DIR := tests/unity
 test: $(UNITY_DIR)/src/unity.c
+	@mkdir -p $(BUILD)
 	gcc -Iinc -I$(UNITY_DIR)/src -Wall -Wextra \
 	    tests/test_belt.c src/belt.c $(UNITY_DIR)/src/unity.c -o $(BUILD)/test_belt
 	./$(BUILD)/test_belt
