@@ -131,11 +131,19 @@ void cems_step(void)
     const int32_t  tacho = platform_tacho();
     const int32_t  tacho_delta = tacho - prev_tacho;
     const uint32_t now = platform_now_ms();
+    /* States in which the motor is driving: any of these may hit overcurrent. */
     const uint8_t motor_active = (uint8_t)((state == CEMS_BLA)     ||
                                            (state == CEMS_BSR)     ||
                                            (state == CEMS_COMFORT) ||
                                            (state == CEMS_HAPTIC)  ||
                                            (state == CEMS_PARKING));
+
+    /* Functions that REQUIRE the belt to stay latched. BLA runs unlatched by
+     * definition and parking is already the released case, so neither belongs
+     * here - releasing the buckle only interrupts these three. */
+    const uint8_t needs_latch = (uint8_t)((state == CEMS_BSR)     ||
+                                          (state == CEMS_COMFORT) ||
+                                          (state == CEMS_HAPTIC));
 
     /* ---------- safety checks, before any function logic ---------- */
 
@@ -150,8 +158,8 @@ void cems_step(void)
         return;
     }
 
-    /* Belt released while the motor is working: stop and park it. */
-    if ((motor_active != 0U) && (latch == 0U) && (state != CEMS_PARKING))
+    /* Belt released during a latched function: stop and park the webbing. */
+    if ((needs_latch != 0U) && (latch == 0U))
     {
         platform_set_duty(0.0f);
         bsr_done = 0U;                 /* next latch must run BSR again */
